@@ -43,7 +43,7 @@ async function convertEmailToPdf(emailData, batchId) {
         const pdfBytes = await pdfDoc.save();
 
         // Create a local file path for the PDF
-        const directory = path.join(__basedir, 'resources', 'emails', 'attachments', 'emails', batchId);
+        const directory = path.join(__basedir, 'resources', 'emails', 'attachments', batchId);
         if (!fs.existsSync(directory)) {
             fs.mkdirSync(directory, { recursive: true });
         }

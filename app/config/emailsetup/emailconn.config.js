@@ -5,8 +5,6 @@ require('dotenv').config();
 // Create transporter using nodemailer
 async function nodeMailerConfig(clientEmailID) {
     const clientInfo = await getClientInfoFromMailID(clientEmailID);
-
-
     const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465, // or 587 for non-secure

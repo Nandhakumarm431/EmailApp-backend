@@ -75,8 +75,6 @@ async function mergePdfs(pdfBuffers) {
 
 async function processAndMergePdfs(batchId, emaildata) {
     const mergedPdfKey = `${batchId}-merged.pdf`;  // Name for the merged PDF file in S3
-    console.log('mergedPdfKey', mergedPdfKey);
-
     try {
         // Step 1: Call Lambda to fetch all PDFs from S3 based on batchId
 
@@ -107,7 +105,7 @@ async function processAndMergePdfs(batchId, emaildata) {
         console.log('PDFs merged successfully.');
 
         // Step 4: Store the merged PDF temporarily in a local directory
-        const directory = path.join(__basedir, 'resources', 'emails', 'attachments', 'emails', batchId);
+        const directory = path.join(__basedir, 'resources', 'emails', 'attachments', batchId);
         const filePath = path.join(directory, mergedPdfKey);
 
         // Ensure the directory exists
@@ -118,11 +116,10 @@ async function processAndMergePdfs(batchId, emaildata) {
         // Write the merged PDF buffer to a local file
         fs.writeFileSync(filePath, mergedPdfBuffer);
         console.log(`Merged PDF saved locally at: ${filePath}`);
-
         // Step 5: Upload the merged PDF to S3
-        const mergedPdfLocation = await uploadToS3(filePath, batchId, mergedPdfKey, emaildata, true);
+        const mergedPdfLocation = await uploadToS3(filePath, batchId, mergedPdfKey, emaildata, true, mergedPdfKey, false);
         console.log(`Merged PDF uploaded to S3: ${mergedPdfLocation}`);
-
+        return filePath;
     } catch (error) {
         console.error('Error processing PDFs for batchId:', batchId, error);
     }

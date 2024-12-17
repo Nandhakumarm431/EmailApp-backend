@@ -24,6 +24,12 @@ module.exports = (sequelize, Sequelize) => {
         clientRefToken: {
             type: Sequelize.STRING
         },
+        validdomainname: {
+            type: Sequelize.STRING
+        },        
+        activeStatus: {
+            type: Sequelize.BOOLEAN
+        }
     })
     return clientDetails;
 }

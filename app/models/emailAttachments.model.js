@@ -1,12 +1,15 @@
-module.exports = (sequelize, Sequelize) =>{
-    const emailAttachments = sequelize.define('emailAttachments',{
-        fileName:{
+module.exports = (sequelize, Sequelize) => {
+    const emailAttachments = sequelize.define('emailAttachments', {
+        fileName: {
             type: Sequelize.STRING
         },
-        fileType:{
+        originalFileName: {
             type: Sequelize.STRING
         },
-        fileURL:{
+        fileType: {
+            type: Sequelize.STRING
+        },
+        fileURL: {
             type: Sequelize.STRING
         },
         receivedDateTime: {
@@ -18,7 +21,13 @@ module.exports = (sequelize, Sequelize) =>{
         statusReason: {
             type: Sequelize.STRING
         },
-        isMerged:{
+        isMerged: {
+            type: Sequelize.BOOLEAN
+        },
+        isEncryptedFile: {
+            type: Sequelize.BOOLEAN
+        },
+        isEmailAttachment: {
             type: Sequelize.BOOLEAN
         }
     })

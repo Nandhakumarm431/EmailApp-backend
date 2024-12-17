@@ -11,7 +11,7 @@ AWS.config.update({
 });
 const s3 = new AWS.S3();
 
-async function uploadToS3(filePath, batchId, filename, emaildata, merged) {
+async function uploadToS3(filePath, batchId, filename, emaildata, merged, originalFilename, isEmailFile, isEncryptedFile) {
     const fileStream = fs.createReadStream(filePath);
     const folderLocation = `${batchId}/${path.basename(filePath)}`;
     const key = `attachments/${folderLocation}`;
@@ -29,13 +29,16 @@ async function uploadToS3(filePath, batchId, filename, emaildata, merged) {
         console.log(`File uploaded to S3: ${folderLocation}`);
         const metadata = {
             fileName: filename,
+            originalFileName: originalFilename,
             fileType: fileType,
             fileURL: key,
             receivedDateTime: emaildata.receivedDateTime,
             status: 'Uploaded',
             statusReason: 'File successfully uploaded',
             batchId: emaildata.id,
-            isMerged: merged
+            isMerged: merged,
+            isEncryptedFile: isEncryptedFile,
+            isEmailAttachment: isEmailFile
         };
 
         await emailAttachmentsDB.create(metadata);

@@ -39,15 +39,19 @@ async function isFileEncrypted(filePath) {
 
 // PDF Check
 async function isPdfPasswordProtected(filePath) {
-    console.log('filepath',filePath);
-    
     try {
-        const pdfBytes = await streamToBuffer(filePath);
-        const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
-        return pdfDoc.isEncrypted;
+        // Read file into a buffer
+        const pdfBytes = fs.readFileSync(filePath);
+        const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: false });
+        console.log('PDF is not password-protected.');
+        return false; // Not password-protected
     } catch (error) {
-        console.error('Error reading PDF:', error);
-        return true; // Assume encrypted if the file cannot be opened
+        if (error.message.includes('encrypted')) {
+            console.log('PDF is password-protected.');
+            return true; // Password-protected
+        }
+        console.error('Error reading PDF:', error.message);
+        return true; // Assume protected if unreadable
     }
 }
 // Helper function to convert stream to buffer

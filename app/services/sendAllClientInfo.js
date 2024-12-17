@@ -4,6 +4,7 @@ const clientInfoDB = db.clientDetails
 async function getAllClientsInfo() {
     try {
         let allClients = await clientInfoDB.findAll({
+            where: { activeStatus: true },
             attributes: ['clientEmailID']
         });
         return allClients;
