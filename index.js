@@ -79,6 +79,7 @@ async function connectToImapForAllClients() {
                 console.error('Invalid client detected:', client);
                 continue;
             }
+            console.log('Connection starts..');            
             connectToImap(client);
         }
     } catch (error) {
@@ -303,5 +304,5 @@ async function checkNewEmails(connection, clientEmailID) {
 }
 
 // Start the initial IMAP connection
-// connectToImapForAllClients();
+connectToImapForAllClients();
 
