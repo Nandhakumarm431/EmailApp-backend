@@ -32,6 +32,8 @@ const emailDB = db.emailDetails;
 global.__basedir = __dirname;
 app.get('/', (req, res) => res.json({ message: "Node Email test" }));
 
+require('./app/routes/auth.routes')(app);
+require('./app/routes/roleDet.routes')(app);
 require('./app/routes/emaildetails.routes')(app);
 require('./app/routes/emailattachments.routes')(app);
 require('./app/routes/clientDet.routes')(app);
@@ -79,7 +81,6 @@ async function connectToImapForAllClients() {
                 console.error('Invalid client detected:', client);
                 continue;
             }
-            console.log('Connection starts..');            
             connectToImap(client);
         }
     } catch (error) {
@@ -87,26 +88,30 @@ async function connectToImapForAllClients() {
     }
 }
 
+
 // Function to establish and manage the IMAP connection
 async function connectToImap(client) {
     if (!client || !client.clientEmailID) {
         console.error('Invalid client object passed to connectToImap:', client);
         return;
     }
+
     try {
         const xoauth2gen = await createAuthTokens(client.clientEmailID);
         xoauth2gen.getToken(async (err, token) => {
             if (err) {
                 console.error('Error generating token:', err);
-                setTimeout(() => connectToImap(client), 5000); // Retry after delay
+                retryConnection(client);
                 return;
             }
+
             const clientInfo = await getClientInfoFromMailID(client.clientEmailID);
             if (!clientInfo) {
                 console.error('Client information not found!');
-                setTimeout(() => connectToImap(client), 5000);
+                retryConnection(client);
                 return;
             }
+
             const config = {
                 imap: {
                     user: clientInfo.clientEmailID,
@@ -118,28 +123,39 @@ async function connectToImap(client) {
                 },
             };
 
-            imaps.connect(config).then((connection) => {
+            try {
+                const connection = await imaps.connect(config);
                 console.log('Connected to IMAP server.');
-                setupListeners(connection); // Set up listeners for email events and errors
-                connection.openBox('INBOX', true).then(() => {
+                setupListeners(connection);
+
+                try {
+                    await connection.openBox('INBOX', true);
                     console.log('Listening for new emails...');
                     connection.on('mail', () =>
                         checkNewEmails(connection, client.clientEmailID)
-                    ); // Listen for new email events
-                }).catch((boxErr) => {
+                    );
+                } catch (boxErr) {
                     console.error('Error opening INBOX:', boxErr);
-                    setTimeout(() => connectToImap(client), 5000); // Retry after delay
-                });
-            }).catch((connErr) => {
+                    retryConnection(client);
+                }
+            } catch (connErr) {
                 console.error('IMAP connection failed:', connErr);
-                setTimeout(() => connectToImap(client), 5000); // Retry after delay
-            });
+                retryConnection(client);
+            }
         });
     } catch (error) {
         console.error('Error in connectToImap:', error);
-        setTimeout(() => connectToImap(client), 5000); // Retry after delay
+        retryConnection(client);
     }
 }
+
+// Helper function for retrying connections
+function retryConnection(client) {
+    const retryDelay = 5000; // 5 seconds
+    console.log(`Retrying connection in ${retryDelay / 1000} seconds...`);
+    setTimeout(() => connectToImap(client), retryDelay);
+}
+
 
 // Function to check for new emails
 async function checkNewEmails(connection, clientEmailID) {
@@ -286,8 +302,8 @@ async function checkNewEmails(connection, clientEmailID) {
 
                         const folderlocation = await processAndMergePdfs(batchId, emaildata);
                         const mergePath = path.dirname(folderlocation);
-                        // fs.rm(mergePath, { recursive: true, force: true });
-                        await deleteFileAndFolder(mergePath, folderPath)
+
+                        await deleteFileAndFolder(folderPath, mergePath)
                         console.log(`File deleted from local storage: ${mergePath}`);
                         const updateData = await emailDB.update({
                             emailFolderType: 'Success',

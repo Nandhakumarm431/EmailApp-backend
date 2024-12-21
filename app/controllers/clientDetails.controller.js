@@ -50,6 +50,19 @@ const getAllClients = async (req, res) => {
         res.status(500).json({ message: 'Internal server error', error: error.message });
     }
 }
+
+const getAllClientNames = async (req, res) => {
+    try {
+        let clientnames = await clientDetDB.findAll({
+            attributes: ['id',"clientName"]
+        });
+        res.send(clientnames)
+        
+    } catch (error) {
+        res.status(500).json({ message: 'Internal server error', error: error.message });
+    }
+}
 module.exports = {
-    createClientDetails, getOneClient, getAllClients
+    createClientDetails, getOneClient, getAllClients,
+    getAllClientNames
 }

@@ -3,6 +3,7 @@ module.exports = app =>{
 
     app.get('/getOneClient/:emailid',clientDetAPI.getOneClient)
     app.get('/getAllClients',clientDetAPI.getAllClients)
+    app.get('/getAllClientNames',clientDetAPI.getAllClientNames)
     app.post("/createClient", clientDetAPI.createClientDetails);
 
     const commonDetAPI = require('../controllers/commondet.controller')
