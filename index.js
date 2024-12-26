@@ -26,6 +26,7 @@ const getAllClientsInfo = require('./app/services/sendAllClientInfo');
 const deleteFileAndFolder = require('./app/services/deleteFileAndFolder');
 const { htmlToText } = require('html-to-text');
 const processAttachment = require('./app/services/processAttachment');
+const getAuthorizedToken = require('./server');
 db.sequelize.sync();
 const emailDB = db.emailDetails;
 
@@ -37,6 +38,7 @@ require('./app/routes/roleDet.routes')(app);
 require('./app/routes/emaildetails.routes')(app);
 require('./app/routes/emailattachments.routes')(app);
 require('./app/routes/clientDet.routes')(app);
+require('./app/routes/user.routes')(app);
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
@@ -45,23 +47,80 @@ app.listen(PORT, () => {
 
 const processedEmails = new Set();  // In-memory store for processed emails
 
+const MAX_RECONNECT_ATTEMPTS = 5; // Maximum number of retries
+const RECONNECT_DELAY = 5000; // Delay between retries in milliseconds
+let reconnectAttempts = 0; // Track reconnect attempts for the client
+
+function retryConnection(client) {
+    if (!client || !client.clientEmailID) {
+        console.error('Invalid client object passed to retryConnection:', client);
+        return;
+    }
+
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        console.error(`Maximum reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached for client: ${client.clientEmailID}. Giving up.`);
+        return;
+    }
+
+    reconnectAttempts++;
+    console.log(`Attempting to reconnect for client: ${client.clientEmailID} (Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+
+    setTimeout(async () => {
+        try {
+            console.log('Reconnecting attempt..');            
+            await getAuthorizedToken(client); // Refresh tokens if necessary
+            await connectToImap(client); // Reconnect to IMAP
+            reconnectAttempts = 0; // Reset attempts after successful connection
+        } catch (error) {
+            console.error('Reconnection attempt failed:', error);
+            retryConnection(client); // Retry recursively if connection fails
+        }
+    }, RECONNECT_DELAY * reconnectAttempts); // Exponential backoff
+}
+
+
+function startKeepAlive(connection) {
+    setInterval(() => {
+        if (connection.state === 'authenticated') {
+            console.log('Sending NOOP to keep connection alive...');
+            connection.noop((err) => {
+                if (err) {
+                    console.error('Error sending NOOP:', err);
+                }
+            });
+        }
+    }, KEEP_ALIVE_INTERVAL);
+}
+
 // Function to add listeners for handling errors and reconnection
-function setupListeners(connection) {
+function setupListeners(connection, client) {
+    connection.on('ready', () => {
+        console.log('IMAP connection established.');
+        reconnectAttempts = 0; // Reset reconnect attempts
+        startKeepAlive(connection); // Start sending NOOP commands
+    });
+
     connection.on('error', (error) => {
         console.error('IMAP connection error:', error);
-        reconnectWithDelay();
+        connection.end(); // Ensure the connection is closed before retrying
+        retryConnection(client);
     });
-    connection.on('close', () => {
-        console.warn('IMAP connection closed.');
-        reconnectWithDelay();
+
+    connection.on('close', (hadError) => {
+        if (hadError) {
+            console.warn('IMAP connection closed due to an error.');
+        } else {
+            console.warn('IMAP connection closed gracefully.');
+        }
+        retryConnection(client);
     });
 }
 
-// Retry connection with a delay to avoid rapid retries
-function reconnectWithDelay() {
-    console.log('Retrying connection in 5 seconds...');
-    setTimeout(connectToImap, 5000);
-}
+// // Retry connection with a delay to avoid rapid retries
+// function reconnectWithDelay() {
+//     console.log('Retrying connection in 5 seconds with delay...');
+//     setTimeout(connectToImap, 5000);
+// }
 
 async function moveEmailToFolder(connection, messageId, folderName) {
     try {
@@ -97,27 +156,30 @@ async function connectToImap(client) {
     }
 
     try {
+        // Generate OAuth2 tokens for the IMAP connection
         const xoauth2gen = await createAuthTokens(client.clientEmailID);
+
         xoauth2gen.getToken(async (err, token) => {
             if (err) {
                 console.error('Error generating token:', err);
-                retryConnection(client);
+                retryConnection(client); // Retry if token generation fails
                 return;
             }
 
             const clientInfo = await getClientInfoFromMailID(client.clientEmailID);
             if (!clientInfo) {
                 console.error('Client information not found!');
-                retryConnection(client);
+                retryConnection(client); // Retry if client info is missing
                 return;
             }
 
+            // IMAP connection configuration
             const config = {
                 imap: {
                     user: clientInfo.clientEmailID,
                     xoauth2: token,
                     host: process.env.IMAP_HOST,
-                    port: process.env.IMAP_PORT,
+                    port: parseInt(process.env.IMAP_PORT, 10),
                     tls: true,
                     tlsOptions: { rejectUnauthorized: false },
                 },
@@ -126,35 +188,42 @@ async function connectToImap(client) {
             try {
                 const connection = await imaps.connect(config);
                 console.log('Connected to IMAP server.');
-                setupListeners(connection);
 
+                // Set up listeners for the connection
+                setupListeners(connection, client);
+
+                // Open the INBOX and start listening for new emails
                 try {
                     await connection.openBox('INBOX', true);
                     console.log('Listening for new emails...');
-                    connection.on('mail', () =>
-                        checkNewEmails(connection, client.clientEmailID)
-                    );
+
+                    connection.on('mail', () => {
+                        checkNewEmails(connection, client.clientEmailID);
+                    });
+
+                    connection.on('expunge', (seqno) => {
+                        console.log(`Message expunged: ${seqno}`);
+                    });
+
+                    connection.on('update', (seqno) => {
+                        console.log(`Message updated: ${seqno}`);
+                    });
                 } catch (boxErr) {
                     console.error('Error opening INBOX:', boxErr);
-                    retryConnection(client);
+                    retryConnection(client); // Retry if opening INBOX fails
                 }
             } catch (connErr) {
                 console.error('IMAP connection failed:', connErr);
-                retryConnection(client);
+                retryConnection(client); // Retry if connection fails
             }
         });
     } catch (error) {
         console.error('Error in connectToImap:', error);
-        retryConnection(client);
+        retryConnection(client); // Retry for general errors
     }
 }
 
-// Helper function for retrying connections
-function retryConnection(client) {
-    const retryDelay = 5000; // 5 seconds
-    console.log(`Retrying connection in ${retryDelay / 1000} seconds...`);
-    setTimeout(() => connectToImap(client), retryDelay);
-}
+
 
 
 // Function to check for new emails

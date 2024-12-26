@@ -39,13 +39,25 @@ const getOneClient = async (req, res) => {
     }
 }
 
-const getAllClients = async (req, res) => {
+const getAllClientEmailIDs = async (req, res) => {
     try {
         let allClients = await clientDetDB.findAll({
             attributes: ['clientEmailID']
         });
         res.send(allClients)
-        
+
+    } catch (error) {
+        res.status(500).json({ message: 'Internal server error', error: error.message });
+    }
+}
+
+const getAllClients = async (req, res) => {
+    try {
+        let allClients = await clientDetDB.findAll({
+            // attributes: ['id', 'clientName', 'clientId', 'clientEmailID', 'validdomainname', 'activeStatus']
+        });
+        res.send(allClients)
+
     } catch (error) {
         res.status(500).json({ message: 'Internal server error', error: error.message });
     }
@@ -54,15 +66,15 @@ const getAllClients = async (req, res) => {
 const getAllClientNames = async (req, res) => {
     try {
         let clientnames = await clientDetDB.findAll({
-            attributes: ['id',"clientName"]
+            attributes: ['id', "clientName"]
         });
         res.send(clientnames)
-        
+
     } catch (error) {
         res.status(500).json({ message: 'Internal server error', error: error.message });
     }
 }
 module.exports = {
-    createClientDetails, getOneClient, getAllClients,
+    createClientDetails, getOneClient, getAllClients, getAllClientEmailIDs,
     getAllClientNames
 }

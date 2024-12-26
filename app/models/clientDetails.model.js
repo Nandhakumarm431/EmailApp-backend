@@ -15,6 +15,9 @@ module.exports = (sequelize, Sequelize) => {
         clientGoogleID: {
             type: Sequelize.STRING
         },
+        clientAuthorizationCode: {
+            type: Sequelize.STRING
+        },
         clientGoogleSecret: {
             type: Sequelize.STRING
         },
@@ -24,9 +27,16 @@ module.exports = (sequelize, Sequelize) => {
         clientRefToken: {
             type: Sequelize.STRING
         },
+        clientTokenExp: {
+            type: Sequelize.STRING
+        },
+        tokenExpiryTimestamp: {
+            type: Sequelize.BIGINT,
+            allowNull: true,
+        },
         validdomainname: {
             type: Sequelize.STRING
-        },        
+        },
         activeStatus: {
             type: Sequelize.BOOLEAN
         }
